@@ -1,0 +1,110 @@
+# ============================================================
+# first-principles-repo · 条目 Schema(机器可读)
+# validate.py 以此为唯一事实源做硬校验。
+# 每条原理 = Markdown 文件 + YAML front matter,路径按层级分目录。
+# ============================================================
+
+# 层级目录 => 层级号 的映射(硬校验:目录必须与 front matter 的 layer 一致)
+layers:
+  L1-logic-math: 1
+  L2-physics: 2
+  L3-chemistry: 3
+  L4-biology: 4
+  L5-neuroscience: 5
+  L6-computation: 6
+  L7-economics: 7
+  L8-sociology: 8
+  L9-engineering: 9
+  L10-complexity: 10
+  meta: 0          # 元公设区(第 0 层:关于学科本身的哲学公设)
+
+# 条目状态枚举
+# axiom      公设 —— 不可由同层/下层推导的基石(默认,需通过剥离审计)
+# theorem    定理 —— 可由公设严格推导,但"不可绕过"(保留理由:教学/结构价值)
+# fact       事实 —— 观测到的经验规律/历史偶然(非原理,备查)
+# hypothesis 假说 —— 未决竞争理论(立场未定,不作基石)
+# meta       元公设 —— 关于学科的哲学前提(归入 meta/ 目录)
+statuses:
+  - axiom
+  - theorem
+  - fact
+  - hypothesis
+  - meta
+
+# 剥离审计结果枚举
+# pass    —— 已通过(证据充分,可保持 axiom)
+# review  —— 待评审(证据不足,或命中剥离词表,需人工复核)
+# fail    —— 未通过(应降级为 theorem/fact/hypothesis)
+peel_results:
+  - pass
+  - review
+  - fail
+
+# front matter 必填字段(缺失即硬校验失败)
+required_fields:
+  - id
+  - layer
+  - name
+  - status
+  - statement
+  - verification
+  - boundary
+  - contributor
+  - created
+
+# 字段格式规则
+field_rules:
+  id:
+    pattern: "^[LM][0-9]+-[0-9]{3}$|^META-[0-9]{3}$"   # L2-014 / META-001
+    description: "唯一标识:层级前缀+序号"
+  layer:
+    min: 0
+    max: 10
+    description: "层级号(0=元公设)"
+  status:
+    enum: "statuses"
+    description: "条目状态,见上方枚举"
+  peel_result:
+    enum: "peel_results"
+    description: "剥离审计结论(axiom 必填;其余状态可缺省)"
+  derived_from:
+    type: "list_of_ids"
+    description: "推导自哪些条目(仅 theorem;axiom 应留空)"
+    refs_required: true          # 引用的 id 必须存在于仓库,否则硬失败
+  derives:
+    type: "list_of_ids"
+    description: "被哪些条目引用(反向边,自动维护;双向不一致则硬失败)"
+    refs_required: true
+  category:
+    type: "string"
+    description: "层内分类标签(自由文本,建议使用固定的分类词表,见 categories)"
+  contributor:
+    type: "string"
+    description: "GitHub 用户名(便于自动生成贡献者名单)"
+
+# 建议的层内分类词表(软建议,不强制;validate.py 只做格式检查)
+categories:
+  1: [logic, set-theory, proof-theory, model-theory, meta-math]
+  2: [spacetime, dynamics, quantum, statistical, cosmology, symmetry]
+  3: [bonding, reactivity, structure, organic, physical-chem]
+  4: [origin, genetics, evolution, metabolism, development, ecology]
+  5: [neural-computation, learning, perception, consciousness, emotion, social-cognition]
+  6: [computability, information, complexity, universality, physics-of-computation]
+  7: [choice, exchange, game-theory, money, growth, institutions]
+  8: [ontology, power, norms, identity, stratification, networks, politics]
+  9: [control, buildability, failure, evolution-of-tech]
+  10: [emergence, dynamics, adaptation, structure, epistemology]
+
+# 剥离审计证据的最低要求(axiom 必须满足)
+peel_evidence_minimum:
+  min_chars: 40            # 证据文本至少 40 字符,防止空话
+  must_rebut: true         # 证据必须包含对"可还原到更底层"的正面反驳
+  suggest_rebut_keywords:
+    - "不可还原"
+    - "不可推导"
+    - "不能由"
+    - "无法从"
+    - "不是"
+    - "区别于"
+    - "先于"
+    - "独立于"

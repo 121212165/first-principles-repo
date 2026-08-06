@@ -1,0 +1,5 @@
+# CI 产物与本地缓存不入库
+.ci-report/
+__pycache__/
+*.pyc
+.DS_Store
