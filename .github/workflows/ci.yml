@@ -46,6 +46,7 @@ jobs:
       - name: 运行硬校验
         id: validate
         run: |
+          mkdir -p .ci-report
           python scripts/validate.py . \
             | tee .ci-report/validate-output.txt
           exit ${PIPESTATUS[0]}   # 以 validate.py 的真实退出码为准
@@ -77,6 +78,7 @@ jobs:
       - name: 运行证伪引擎
         id: falsify
         run: |
+          mkdir -p .ci-report
           python scripts/falsify.py . \
             | tee .ci-report/falsify-output.txt
           exit 0    # 软门禁永不红 —— 证伪是"报告",不是"封锁"
@@ -182,6 +184,7 @@ jobs:
         run: pip install pyyaml
       - name: 全库硬校验 + 证伪
         run: |
+          mkdir -p .ci-report
           python scripts/validate.py . > .ci-report/weekly-validate.txt 2>&1
           python scripts/falsify.py . > .ci-report/weekly-falsify.txt 2>&1
       - name: 上传周报
