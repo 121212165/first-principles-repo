@@ -64,7 +64,18 @@ def collect_entries() -> list[dict]:
         for md in subdir.glob("*.md"):
             if md.name.startswith("README"):
                 continue
-            meta, body = parse_front_matter(md.read_text(encoding="utf-8"))
+            try:
+                meta, body = parse_front_matter(md.read_text(encoding="utf-8"))
+            except Exception:
+                # 解析失败(如纯 Markdown 无 front matter):登记为"隐形条目",不崩溃
+                entries.append({
+                    "id": md.stem,
+                    "path": md.relative_to(ROOT).as_posix(),
+                    "meta": {"status": None, "_unparseable": True},
+                    "body": "",
+                    "dir": subdir.name,
+                })
+                continue
             entries.append({
                 "id": meta.get("id", md.stem),
                 "path": md.relative_to(ROOT).as_posix(),
@@ -83,16 +94,37 @@ def load_audit() -> dict:
 
 
 def hit_list(text: str, patterns: list) -> list[str]:
+    """剥离词表命中检测(P1 修订版):
+    1. 子串精确匹配(最可靠,优先)
+    2. 中文 4+ 字词条回退:3 字连续子串匹配(语义锚点,误报可控)
+       —— 解决"香农信息度量公设"匹配不到"香农熵"这类同义变体问题。
+       注意:3 字词条("香农熵"等)不做部分匹配,靠词表别名(如"香农")命中,
+       避免 2 字滑窗的误报爆炸(历史教训:2 字滑窗误伤"德尔/定律/定理/完备")。
+    3. 非中文词条(lambda/RSA/PID 等)保持子串匹配。
+    """
     hits = []
     for p in patterns:
-        # 支持正则:^ 前缀表正则,其余按子串
         if isinstance(p, str):
             if p in text:
                 hits.append(p)
+                continue
+            zh = [c for c in p if "\u4e00" <= c <= "\u9fff"]
+            if len(zh) >= 4:
+                p2 = "".join(zh)
+                partial = [p2[i:i + 3] for i in range(len(p2) - 2)]
+                if any(s in text for s in partial):
+                    hits.append(f"{p}(部分)")
         elif isinstance(p, dict):  # {"pattern": ..., "note": ...}
             pat = p["pattern"]
             if pat in text:
                 hits.append(pat)
+            else:
+                zh = [c for c in pat if "\u4e00" <= c <= "\u9fff"]
+                if len(zh) >= 4:
+                    p2 = "".join(zh)
+                    partial = [p2[i:i + 3] for i in range(len(p2) - 2)]
+                    if any(s in text for s in partial):
+                        hits.append(f"{pat}(部分)")
     return hits
 
 
@@ -119,6 +151,14 @@ def main() -> int:
         meta = e["meta"]
         status = meta.get("status")
         lay = meta.get("layer", 0)
+        # P2: 隐形条目治理 —— 缺 status 的条目绕过剥离审计,给 info 提示
+        if status is None or status not in ("axiom", "theorem", "fact", "hypothesis", "meta"):
+            findings.append({
+                "severity": "info",
+                "id": e["id"], "path": e["path"], "layer": lay,
+                "reason": f"status 缺失或非法('{status}'),未参与剥离审计(隐形条目)",
+                "action": "按 CONTRIBUTING.md 补齐 status 字段后重新提交,否则无法判断是否为公设",
+            })
         if status != "axiom":
             continue
         stats["axiom"] += 1
