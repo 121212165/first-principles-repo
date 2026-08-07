@@ -93,12 +93,33 @@ jobs:
           if-no-files-found: ignore
 
   # ========================================================
-  # Job 3 · 汇总评论(把结论写进 PR,提交者不看 Actions 也能看到)
+  # Job 3 · 门禁回归测试(陌生人提交模拟)
+  # 每次 PR/push 验证:硬校验能拦原生错误、软门禁能抓内容错误
+  # ========================================================
+  gates-test:
+    name: 门禁回归 (陌生人提交模拟)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装依赖
+        run: pip install pyyaml
+
+      - name: 运行门禁回归测试
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -v
+
+  # ========================================================
+  # Job 4 · 汇总评论(把结论写进 PR,提交者不看 Actions 也能看到)
   # ========================================================
   report:
     name: 汇总报告 (PR 评论)
     runs-on: ubuntu-latest
-    needs: [validate, falsify]
+    needs: [validate, falsify, gates-test]
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -169,7 +190,7 @@ jobs:
             });
 
   # ========================================================
-  # Job 4 · 全库定期复审(每周日) - 生成全局审计,归档为 artifact
+  # Job 5 · 全库定期复审(每周日) - 生成全局审计,归档为 artifact
   # ========================================================
   weekly-audit:
     name: 每周全库复审
