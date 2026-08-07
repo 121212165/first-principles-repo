@@ -67,7 +67,9 @@ def run_tool(tool: str, cwd: Path) -> tuple[int, str]:
 
 def inject(tmp: Path, mapping: dict[str, str]) -> None:
     for src, lay in mapping.items():
-        shutil.copy(STRANGER / src, tmp / "principles" / lay / Path(src).name)
+        target_dir = tmp / "principles" / lay
+        target_dir.mkdir(parents=True, exist_ok=True)   # 空层级目录 git 不提交,须自动创建
+        shutil.copy(STRANGER / src, target_dir / Path(src).name)
 
 
 class TestPhaseA_HardGate(unittest.TestCase):
