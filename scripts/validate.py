@@ -64,9 +64,43 @@ def parse_front_matter(text: str) -> tuple[dict, str]:
 
 
 def collect_entries(schema: dict) -> dict[str, dict]:
-    """扫描 principles/ 下所有 .md,返回 {id: entry_info}"""
+    """扫描 principles/ 下所有 .md,返回 {id: entry_info}
+
+    结构盲区治理(活体测试 PR#1 暴露):
+    - 引擎只扫 principles/,陌生提交放在任意其他目录(如 stranger/)会完全绕过检查。
+    - 故此处同时扫描全仓 .md,凡位于原理内容目录之外的文件一律报错,
+      避免"内容绕过扫描"的假阳性 CI 绿灯。
+    """
     layer_map = schema["layers"]
+    allowed_dirs = set(layer_map.keys())
+    # 允许的非内容目录(README/docs/tests/.github 等,它们不承载原理条目)
+    non_content_dirs = {"docs", "tests", ".github", "scripts", "rules", "node_modules", ".git"}
+
     entries: dict[str, dict] = {}
+
+    # 全仓 .md 扫描,拦截"目录逃逸"的条目文件
+    for md in sorted(ROOT.rglob("*.md")):
+        rel = md.relative_to(ROOT)
+        parts = rel.parts
+        if len(parts) < 2:
+            # 根目录 README.md 允许;其他根级 .md 视为可疑
+            if md.name != "README.md":
+                warn(f"{rel}: 位于仓库根目录的非 README 文件,请放入 principles/ 或 docs/")
+            continue
+        top = parts[0]
+        if top in non_content_dirs:
+            continue
+        if top == "principles":
+            # principles/ 下:第二层必须是合法层级目录;第三层起必须是 *.md 条目
+            if len(parts) >= 2 and parts[1] not in allowed_dirs and not md.name.startswith("README"):
+                err(f"{rel}: 位于 principles/ 下非法子目录 '{parts[1]}',层级目录必须是 {sorted(allowed_dirs)}")
+            continue
+        if top not in allowed_dirs:
+            # 结构盲区:出现在非原理目录(如 stranger/)的内容文件必须被拦截
+            err(f"{rel}: 位于非法目录 '{top}',原理条目必须放在 principles/L{{n}}-* 下;"
+                f"引擎不扫描该目录,内容将绕过剥离审计——请移动或删除")
+            continue
+
     for subdir in PRINCIPLES_DIR.iterdir():
         if not subdir.is_dir() or subdir.name not in layer_map:
             continue

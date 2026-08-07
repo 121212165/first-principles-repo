@@ -135,6 +135,39 @@ class TestPhaseB_SoftGate(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+class TestStructuralBlindSpot(unittest.TestCase):
+    """结构盲区治理(活体测试 PR#1 暴露):
+    陌生提交放在 principles/ 之外的任意目录(如 stranger/),引擎原本不扫描,
+    导致 CI 假绿灯。修复后:全仓 .md 扫描,非原理目录必须报错。"""
+
+    def test_stranger_dir_blocked(self):
+        tmp = build_tmp_repo()
+        try:
+            stranger = tmp / "stranger"
+            stranger.mkdir()
+            (stranger / "first-principles.md").write_text(
+                "矛盾律: A不能同时为真又为假\n", encoding="utf-8")
+            code, out = run_tool("validate.py", tmp)
+            self.assertNotEqual(code, 0, "stranger/ 目录内容应被硬校验拦截")
+            self.assertIn("stranger", out, "应点名 stranger 目录")
+            self.assertIn("非法目录", out, "应指明非法目录")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_principles_subdir_guard(self):
+        """principles/ 下非层级子目录也应拦截"""
+        tmp = build_tmp_repo()
+        try:
+            bad = tmp / "principles" / "misc"
+            bad.mkdir()
+            (bad / "x.md").write_text("---\nid: M1\n---\n内容", encoding="utf-8")
+            code, out = run_tool("validate.py", tmp)
+            self.assertNotEqual(code, 0, "principles/misc 非法子目录应被拦截")
+            self.assertIn("misc", out)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class TestBaseline(unittest.TestCase):
     """基线:干净仓库(仅示例条目)应通过 validate"""
 
