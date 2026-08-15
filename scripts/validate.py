@@ -75,6 +75,8 @@ def collect_entries(schema: dict) -> dict[str, dict]:
     allowed_dirs = set(layer_map.keys())
     # 允许的非内容目录(README/docs/tests/.github 等,它们不承载原理条目)
     non_content_dirs = {"docs", "tests", ".github", "scripts", "rules", "node_modules", ".git"}
+    # 根级合法文档(不是原理条目,全仓扫描须放行)
+    root_allowed_md = {"README.md", "AGENTS.md", "CONTRIBUTORS.md"}
 
     entries: dict[str, dict] = {}
 
@@ -83,9 +85,9 @@ def collect_entries(schema: dict) -> dict[str, dict]:
         rel = md.relative_to(ROOT)
         parts = rel.parts
         if len(parts) < 2:
-            # 根目录 README.md 允许;其他根级 .md 视为可疑
-            if md.name != "README.md":
-                warn(f"{rel}: 位于仓库根目录的非 README 文件,请放入 principles/ 或 docs/")
+            # 根目录:白名单内的文档(README/AGENTS/CONTRIBUTORS)放行,其余 .md 视为可疑
+            if md.name not in root_allowed_md:
+                warn(f"{rel}: 位于仓库根目录的非白名单 .md 文件,请放入 principles/、docs/ 或列入白名单")
             continue
         top = parts[0]
         if top in non_content_dirs:

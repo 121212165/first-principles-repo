@@ -209,7 +209,9 @@ jobs:
         run: |
           mkdir -p .ci-report
           python scripts/validate.py . > .ci-report/weekly-validate.txt 2>&1
-          python scripts/falsify.py . > .ci-report/weekly-falsify.txt 2>&1
+          # falsify 退出码 2 = 有待审项(软门禁正常信号),与 falsify job 的 exit 0 一致:
+          # 每周复审是"报告"不是"封锁",任何退出码都不该让 job 红。
+          python scripts/falsify.py . > .ci-report/weekly-falsify.txt 2>&1 || true
       - name: 上传周报
         uses: actions/upload-artifact@v4
         with:
